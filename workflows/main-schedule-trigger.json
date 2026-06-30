@@ -1,0 +1,53 @@
+{
+  "name": "Main Schedule Trigger",
+  "nodes": [
+    {
+      "name": "Every 8 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 8 }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Post Test Message To Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"message\": \"Test message from n8n Schedule Trigger\", \"sent_at\": $now.toISO() } }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Supabase Header Auth" }
+      }
+    }
+  ],
+  "connections": {
+    "Every 8 Hours": {
+      "main": [
+        [
+          { "node": "Post Test Message To Supabase", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}
