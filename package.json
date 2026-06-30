@@ -1,0 +1,9 @@
+{
+  "name": "job-pipeline",
+  "version": "1.0.0",
+  "description": "Job aggregation pipeline — shared fetchers-api backend called by n8n via HTTP routes",
+  "private": true,
+  "scripts": {
+    "start:api": "node fetchers-api/server.js"
+  }
+}

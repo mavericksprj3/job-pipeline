@@ -1,0 +1,1 @@
+-- Member 1 — Supabase/Postgres schema for jobs, companies, runs, and related tables

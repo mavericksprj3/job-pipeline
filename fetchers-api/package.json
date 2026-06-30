@@ -1,0 +1,14 @@
+{
+  "name": "fetchers-api",
+  "version": "1.0.0",
+  "description": "Express API server providing HTTP routes for each job-board fetcher, called by n8n workflows",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
