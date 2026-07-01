@@ -1,3 +1,111 @@
 {
-  "// Member 3": "n8n workflow — loops through companies to extract tech-stack data"
+  "name": "20 Tech Stack Loop",
+  "n8nWorkflowId": "b4mnnl9RkHQQivda",
+  "n8nUrl": "https://mavericksproject.app.n8n.cloud/workflow/b4mnnl9RkHQQivda",
+  "nodes": [
+    {
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "parameters": {}
+    },
+    {
+      "name": "Tech Stacks List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [280, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const stacks = [\n  \"React\", \"Node.js\", \"Python\", \"Go\", \"Rust\", \"TypeScript\", \"AWS\", \"DevOps\",\n  \"ML Engineer\", \"Data Engineer\", \"Java\", \"Kubernetes\", \"Docker\", \"Vue.js\",\n  \"Angular\", \"PHP\", \"Ruby\", \"C++\", \"Swift\", \"Kotlin\"\n];\n\nconst staticData = $getWorkflowStaticData('global');\nstaticData.rawJobs = [];\n\nreturn stacks.map(function (stack) { return { json: { stack: stack } }; });"
+      }
+    },
+    {
+      "name": "Loop Over Tech Stacks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [560, 300],
+      "parameters": { "batchSize": 1 }
+    },
+    {
+      "name": "Fetch SERP for Stack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [840, 200],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/serp?query={{ encodeURIComponent($json.stack) }}&location=US",
+        "authentication": "none",
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "name": "Accumulate Stack Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.rawJobs)) staticData.rawJobs = [];\n\nconst stack = $('Loop Over Tech Stacks').item.json.stack;\nconst response = $input.first().json;\nconst jobs = Array.isArray(response && response.jobs) ? response.jobs : [];\n\nfor (const job of jobs) {\n  staticData.rawJobs.push(Object.assign({}, job, { _searchedStack: stack }));\n}\n\nreturn [{ json: { stack: stack, jobsFound: jobs.length } }];"
+      }
+    },
+    {
+      "name": "Normalize and Dedupe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 500],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst rawJobs = Array.isArray(staticData.rawJobs) ? staticData.rawJobs : [];\n\nfunction generateUuid() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {\n    const r = (Math.random() * 16) | 0;\n    const v = c === 'x' ? r : (r & 0x3) | 0x8;\n    return v.toString(16);\n  });\n}\n\nfunction toIso(value) {\n  if (!value) return null;\n  const d = new Date(value);\n  return isNaN(d.getTime()) ? null : d.toISOString();\n}\n\nconst seen = new Set();\nconst deduped = [];\n\nfor (const raw of rawJobs) {\n  try {\n    const link = (raw && raw.link) || '';\n    const company = (raw && raw.company) || '';\n    const key = link + '||' + company;\n    if (seen.has(key)) continue;\n    seen.add(key);\n\n    deduped.push({\n      id: generateUuid(),\n      title: (raw && raw.title) || null,\n      company: (raw && raw.company) || null,\n      location: (raw && raw.location) || null,\n      stack: [raw && raw._searchedStack].filter(Boolean),\n      date_posted: toIso(raw && raw.date_posted),\n      link: (raw && raw.link) || null,\n      source: (raw && raw.source) || 'serp',\n      type: (raw && raw.type) || 'full-time',\n      created_at: new Date().toISOString()\n    });\n  } catch (err) {\n    continue;\n  }\n}\n\nreturn deduped.map(function (job) { return { json: job }; });"
+      }
+    },
+    {
+      "name": "Save to Supabase (job_pool)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [840, 500],
+      "executeOnce": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/job_pool?on_conflict=link,company",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $input.all().map(i => i.json) }}",
+        "options": { "timeout": 60000 }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Header Auth account" }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[{ "node": "Tech Stacks List", "type": "main", "index": 0 }]] },
+    "Tech Stacks List": { "main": [[{ "node": "Loop Over Tech Stacks", "type": "main", "index": 0 }]] },
+    "Loop Over Tech Stacks": {
+      "main": [
+        [{ "node": "Normalize and Dedupe", "type": "main", "index": 0 }],
+        [{ "node": "Fetch SERP for Stack", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch SERP for Stack": { "main": [[{ "node": "Accumulate Stack Results", "type": "main", "index": 0 }]] },
+    "Accumulate Stack Results": { "main": [[{ "node": "Loop Over Tech Stacks", "type": "main", "index": 0 }]] },
+    "Normalize and Dedupe": { "main": [[{ "node": "Save to Supabase (job_pool)", "type": "main", "index": 0 }]] }
+  },
+  "notes": {
+    "loopPattern": "Loop Over Tech Stacks (splitInBatches, batchSize=1) has two outputs: index 0 = 'done' (fires once after all 20 stacks processed, feeds Normalize and Dedupe), index 1 = 'loop' (fires per stack, feeds Fetch SERP for Stack -> Accumulate Stack Results -> back into Loop Over Tech Stacks to continue).",
+    "accumulation": "Raw jobs from every loop iteration are collected in workflow static data (rawJobs array), reset at the start of each run by 'Tech Stacks List', then read and deduped by (link, company) in 'Normalize and Dedupe' once the loop completes.",
+    "knownIssue": "'Save to Supabase (job_pool)' has the Supabase apikey hardcoded in headerParameters because the 'Header Auth account' credential in this n8n instance is empty/non-functional (same issue as the Day 2 Fetch-Normalize-Save workflow). Fix the credential and switch back to genericCredentialType/newCredential when possible."
+  }
 }

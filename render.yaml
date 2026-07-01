@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: fetchers-api
+    runtime: node
+    rootDir: fetchers-api
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SERP_API_KEY
+        sync: false
+      - key: N8N_API_KEY
+        sync: false
+      - key: N8N_WEBHOOK_URL
+        sync: false
+      - key: DATAFORSEO_LOGIN
+        sync: false
+      - key: DATAFORSEO_PASSWORD
+        sync: false
+      - key: ADZUNA_APP_ID
+        sync: false
+      - key: ADZUNA_APP_KEY
+        sync: false

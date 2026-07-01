@@ -82,13 +82,25 @@
       }
     },
     {
+      "name": "Fetch SERP Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [304, 1056],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/serp?query=react&location=US",
+        "authentication": "none",
+        "options": { "timeout": 90000 }
+      }
+    },
+    {
       "name": "Combine All Sources",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [608, 608],
       "parameters": {
         "mode": "append",
-        "numberInputs": 5
+        "numberInputs": 6
       }
     },
     {
@@ -138,7 +150,8 @@
           { "node": "Fetch Lever", "type": "main", "index": 0 },
           { "node": "Fetch RemoteOK", "type": "main", "index": 0 },
           { "node": "Fetch Adzuna", "type": "main", "index": 0 },
-          { "node": "Fetch Himalayas", "type": "main", "index": 0 }
+          { "node": "Fetch Himalayas", "type": "main", "index": 0 },
+          { "node": "Fetch SERP Jobs", "type": "main", "index": 0 }
         ]
       ]
     },
@@ -149,7 +162,8 @@
           { "node": "Fetch Lever", "type": "main", "index": 0 },
           { "node": "Fetch RemoteOK", "type": "main", "index": 0 },
           { "node": "Fetch Adzuna", "type": "main", "index": 0 },
-          { "node": "Fetch Himalayas", "type": "main", "index": 0 }
+          { "node": "Fetch Himalayas", "type": "main", "index": 0 },
+          { "node": "Fetch SERP Jobs", "type": "main", "index": 0 }
         ]
       ]
     },
@@ -158,6 +172,7 @@
     "Fetch RemoteOK": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 2 }]] },
     "Fetch Adzuna": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 3 }]] },
     "Fetch Himalayas": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 4 }]] },
+    "Fetch SERP Jobs": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 5 }]] },
     "Combine All Sources": { "main": [[{ "node": "Normalize to job_pool Schema", "type": "main", "index": 0 }]] },
     "Normalize to job_pool Schema": { "main": [[{ "node": "Save to Supabase (job_pool)", "type": "main", "index": 0 }]] }
   }

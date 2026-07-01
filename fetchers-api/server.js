@@ -3,6 +3,7 @@ const express = require("express");
 const config = require("./config/env");
 const greenhouseRouter = require("./routes/greenhouse");
 const leverRouter = require("./routes/lever");
+const serpRouter = require("./routes/serp");
 const { fetchRemoteOk } = require("./routes/remoteok");
 const { fetchAdzuna } = require("./routes/adzuna");
 const { fetchHimalayas } = require("./routes/himalayas");
@@ -12,6 +13,7 @@ const app = express();
 app.use(express.json());
 app.use('/', greenhouseRouter);
 app.use('/', leverRouter);
+app.use('/', serpRouter);
 
 // Health-check route — used by n8n and uptime monitors
 app.get("/health", (_req, res) => {
