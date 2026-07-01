@@ -1,6 +1,11 @@
 // express server entry point for the fetchers API
 const express = require("express");
 const config = require("./config/env");
+const greenhouseRouter = require("./routes/greenhouse");
+const leverRouter = require("./routes/lever");
+const { fetchRemoteOk } = require("./routes/remoteok");
+const { fetchAdzuna } = require("./routes/adzuna");
+const { fetchHimalayas } = require("./routes/himalayas");
 
 const app = express();
 

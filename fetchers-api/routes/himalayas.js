@@ -3,6 +3,7 @@ const { fetchJson } = require("../utils/httpClient");
 
 const SOURCE = "himalayas";
 const API_URL = "https://himalayas.app/jobs/api/search";
+const DEFAULT_PAGES = 5; // ~100 jobs per run instead of a single ~19-job page
 
 function toIso(epochSeconds) {
   if (!epochSeconds) return null;
@@ -28,24 +29,46 @@ function normalize(job) {
   };
 }
 
-async function fetchHimalayas({ keyword, country = "US" } = {}) {
-  const params = new URLSearchParams();
-  if (keyword) params.set("keyword", keyword);
-  if (country) params.set("country", country);
-  const url = `${API_URL}?${params.toString()}`;
+// The live API ignores `keyword` and `offset` entirely (verified by testing —
+// identical results regardless of keyword, and offset has no effect), but it
+// does honor `page` for real pagination and `country` for real filtering. We
+// still accept `keyword` for forward compatibility in case the API starts
+// honoring it, but rely on `page` to pull enough volume per run.
+async function fetchHimalayas({ keyword, country = "US", pages = DEFAULT_PAGES } = {}) {
+  const seen = new Set();
+  const combined = [];
 
-  try {
-    const data = await fetchJson(url);
-    const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
-    return jobs.map(normalize);
-  } catch (err) {
-    if (err.status === 429) {
-      console.warn("[himalayas] rate limited, skipping this run");
-    } else {
-      console.error("[himalayas] fetch failed:", err.message);
+  for (let page = 1; page <= pages; page++) {
+    const params = new URLSearchParams();
+    if (keyword) params.set("keyword", keyword);
+    if (country) params.set("country", country);
+    params.set("page", String(page));
+    const url = `${API_URL}?${params.toString()}`;
+
+    let data;
+    try {
+      data = await fetchJson(url);
+    } catch (err) {
+      if (err.status === 429) {
+        console.warn("[himalayas] rate limited, skipping remaining pages for this run");
+      } else {
+        console.error(`[himalayas] fetch failed on page ${page}:`, err.message);
+      }
+      break;
     }
-    return [];
+
+    const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
+    if (jobs.length === 0) break; // truly out of results
+
+    for (const job of jobs) {
+      const key = job.guid || job.applicationLink;
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      combined.push(normalize(job));
+    }
   }
+
+  return combined;
 }
 
 module.exports = { fetchHimalayas };

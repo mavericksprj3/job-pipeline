@@ -1,3 +1,164 @@
 {
-  "// Member 3": "n8n workflow — main fetch-normalize-save pipeline"
+  "name": "Main Schedule Trigger",
+  "n8nWorkflowId": "6NklJ5m79jwG2nIl",
+  "n8nUrl": "https://mavericksproject.app.n8n.cloud/workflow/6NklJ5m79jwG2nIl",
+  "nodes": [
+    {
+      "name": "Every 8 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 0],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 8 }]
+        }
+      }
+    },
+    {
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 512],
+      "parameters": {}
+    },
+    {
+      "name": "Fetch Greenhouse",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [304, 304],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/greenhouse",
+        "authentication": "none",
+        "options": { "timeout": 90000 }
+      }
+    },
+    {
+      "name": "Fetch Lever",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [304, 464],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/lever",
+        "authentication": "none",
+        "options": { "timeout": 90000 }
+      }
+    },
+    {
+      "name": "Fetch RemoteOK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [304, 608],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/remoteok",
+        "authentication": "none",
+        "options": { "timeout": 90000 }
+      }
+    },
+    {
+      "name": "Fetch Adzuna",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [304, 752],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/adzuna?page=1",
+        "authentication": "none",
+        "options": { "timeout": 90000 }
+      }
+    },
+    {
+      "name": "Fetch Himalayas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [304, 912],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FETCHERS_API_BASE_URL }}/fetch/himalayas?keyword=engineer&country=US",
+        "authentication": "none",
+        "options": { "timeout": 90000 }
+      }
+    },
+    {
+      "name": "Combine All Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [608, 608],
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 5
+      }
+    },
+    {
+      "name": "Normalize to job_pool Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [912, 608],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const STACK_KEYWORDS = [\n  'python', 'javascript', 'typescript', 'react', 'node.js', 'java', 'golang', 'rust',\n  'aws', 'azure', 'gcp', 'devops', 'kubernetes', 'docker', 'sql', 'data science',\n  'machine learning', 'ai', 'ios', 'android', 'frontend', 'backend', 'full stack',\n  'php', 'ruby', 'sales', 'marketing', 'product', 'design', 'support', 'finance', 'hr', 'legal'\n];\n\nfunction inferStackList(job) {\n  if (job.stack) {\n    return String(job.stack).split(',').map(function (s) { return s.trim(); }).filter(Boolean);\n  }\n  const haystack = ((job.title || '') + ' ' + (job.excerpt || job.description || '')).toLowerCase();\n  const match = STACK_KEYWORDS.find(function (k) { return haystack.includes(k); });\n  return match ? [match] : ['Unknown'];\n}\n\nfunction generateUuid() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {\n    const r = (Math.random() * 16) | 0;\n    const v = c === 'x' ? r : (r & 0x3) | 0x8;\n    return v.toString(16);\n  });\n}\n\nfunction toIso(value) {\n  if (!value) return null;\n  const d = new Date(value);\n  return isNaN(d.getTime()) ? null : d.toISOString();\n}\n\nconst normalized = [];\n\nfor (const item of $input.all()) {\n  const jobs = Array.isArray(item.json && item.json.jobs) ? item.json.jobs : [];\n  for (const raw of jobs) {\n    try {\n      normalized.push({\n        id: generateUuid(),\n        title: (raw && raw.title) || null,\n        company: (raw && raw.company) || null,\n        location: (raw && raw.location) || null,\n        stack: inferStackList(raw || {}),\n        date_posted: toIso(raw && raw.date_posted),\n        link: (raw && raw.link) || null,\n        source: (raw && raw.source) || 'unknown',\n        type: (raw && raw.type) || 'full-time',\n        created_at: new Date().toISOString()\n      });\n    } catch (err) {\n      continue;\n    }\n  }\n}\n\nreturn normalized.map(function (job) { return { json: job }; });\n"
+      }
+    },
+    {
+      "name": "Save to Supabase (job_pool)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1200, 608],
+      "executeOnce": true,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/job_pool?on_conflict=link,company",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $input.all().map(i => i.json) }}",
+        "options": { "timeout": 60000 }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Header Auth account" }
+      }
+    }
+  ],
+  "connections": {
+    "Every 8 Hours": {
+      "main": [
+        [
+          { "node": "Fetch Greenhouse", "type": "main", "index": 0 },
+          { "node": "Fetch Lever", "type": "main", "index": 0 },
+          { "node": "Fetch RemoteOK", "type": "main", "index": 0 },
+          { "node": "Fetch Adzuna", "type": "main", "index": 0 },
+          { "node": "Fetch Himalayas", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "Fetch Greenhouse", "type": "main", "index": 0 },
+          { "node": "Fetch Lever", "type": "main", "index": 0 },
+          { "node": "Fetch RemoteOK", "type": "main", "index": 0 },
+          { "node": "Fetch Adzuna", "type": "main", "index": 0 },
+          { "node": "Fetch Himalayas", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Fetch Greenhouse": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 0 }]] },
+    "Fetch Lever": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 1 }]] },
+    "Fetch RemoteOK": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 2 }]] },
+    "Fetch Adzuna": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 3 }]] },
+    "Fetch Himalayas": { "main": [[{ "node": "Combine All Sources", "type": "main", "index": 4 }]] },
+    "Combine All Sources": { "main": [[{ "node": "Normalize to job_pool Schema", "type": "main", "index": 0 }]] },
+    "Normalize to job_pool Schema": { "main": [[{ "node": "Save to Supabase (job_pool)", "type": "main", "index": 0 }]] }
+  }
 }
